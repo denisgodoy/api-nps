@@ -6,10 +6,11 @@
 
 - [Setting up](https://github.com/denisgodoy/api-nps#setting-up)
 - [Migrations and creating tables](https://github.com/denisgodoy/api-nps#migrations-and-creating-tables)
+- [Models](https://github.com/denisgodoy/api-nps#models)
+- [Repositories](https://github.com/denisgodoy/api-nps#repositories)
 - [Controllers](https://github.com/denisgodoy/api-nps#controllers)
 - [Routes](https://github.com/denisgodoy/api-nps#routes)
 - [Enabling permissions](https://github.com/denisgodoy/api-nps#enabling-permissions)
-- [Models](https://github.com/denisgodoy/api-nps#models)
 
 ## Setting up 
 Installing all necessary dependencies to start the project.
@@ -77,9 +78,9 @@ Adding migrations path to ```ormconfig.json```.
 
 ```
 
-Running ```typeorm``` script to create a new class called CreateUsers inside ```src/database/migrations```.
+Running ```typeorm``` script to create a new migration inside ```src/database/migrations```.
 
-```yarn typeorm migration:create -n CreateUsers```
+```yarn typeorm migration:create -n <MigrationName>```
 
 
 Creating table with users fields inside the ```up``` function in the generated file. ```down``` function to revert table.
@@ -121,83 +122,19 @@ export class CreateUsers1614088105675 implements MigrationInterface {
     }
 }
 ```
+Then migrate table.
 
-### Controllers
-
-Creating an ```UserController.ts``` that receives a method to create new users from received JSON and importing Express' Request and Response.
-
-```typescript
-import { Request, Response } from 'express';
-```
-
-Using TypeORM's getRepository to access its methods and manage database. 
-
-```typescript
-class UserController {
-    async create(request: Request, response: Response){
-        const { name, email } = request.body;
-        const usersRepository = getRepository(User);
-
-        const userAlreadyExists = await usersRepository.findOne({email});
-
-        if(userAlreadyExists){
-            return response.status(400).json({
-                error: 'User already exists.'
-            });
-        };
-
-        const user = usersRepository.create({name, email})
-
-        await usersRepository.save(user);
-
-        return response.json(user)
-    };
-}
-
-export { UserController };
-```
-
-### Routes
-
-Generating routes to the server.
-
-```typescript
-import { Router } from 'express';
-
-const router = Router();
-
-export { router }
-```
-
-Adding route to ```server.ts``` and specifying retrieved data format as JSON.
-
-```typescript
-app.use(express.json());
-app.use(router);
-
-app.listen(3333, () => console.log("Server running!"));
-```
-
-### Enabling permissions
-
-It is mandatory to uncomment the following ```tsconfig.json``` properties in order to give the Controller all necessary permissions.
-
-```json
-    "strict": false,                           
-    "strictPropertyInitialization": false, 
-    "experimentalDecorators": true,        
-    "forceConsistentCasingInFileNames": true
-```
+```yarn typeorm migration:run```
 
 ### Models
 
-Creating a ```src/models``` folder and file ```User.ts``` to generate an User Entity.
+Creating an ```Entity``` inside  ```src/models```.
 
 ```typescript
 import { Entity } from "typeorm";
 ```
 
-Importing ```uuid``` library to automatically create an unique primary key (PK).
+Importing ```uuid``` library to automatically create a primary key (PK).
 
 
 ```typescript
@@ -207,17 +144,18 @@ import { v4 as uuid } from 'uuid'
 Populating Entity's attributes.
 
 ```typescript
-@Entity('users')
+@Entity('surveys')
 
-class User {
+class Survey {
+
     @PrimaryColumn()
     readonly id: string;
 
     @Column()
-    name: string;
+    title: string;
 
     @Column()
-    email: string;
+    description: string;
 
     @CreateDateColumn()
     created_at: Date;
@@ -229,5 +167,103 @@ class User {
     }
 }
 
-export { User };
+export { Survey }
+```
+
+### Repositories
+
+Repositories will manage the database by accessing ```Repository``` methods extending Models.
+
+```typescript
+import { EntityRepository, Repository } from "typeorm";
+import { <Model> } from "../models/<Model>";
+
+@EntityRepository(<Model>)
+class <Repository> extends Repository<<Model>> {}
+
+export { <Respository> };
+```
+
+### Controllers
+
+Creating a ```Controller``` that receives a method to get and send JSON.
+
+```typescript
+import { Request, Response } from 'express';
+import { getCustomRepository } from 'typeorm';
+import { <Name>Repository } from '../repositories/<Name>Respository';
+```
+
+Creating ```<Name>Controller.ts``` to save to custom repository.
+
+```typescript
+class SurveysController {
+    async create(request: Request, response: Response){
+        const {title, description} = request.body;
+
+        const surveysRepository = getCustomRepository(SurveysRepository);
+```
+Receiving data from JSON and saving to the repository.
+
+```typescript
+        const survey = surveysRepository.create({
+            title,
+            description
+        });
+
+        await surveysRepository.save(survey)
+        return response.status(201).json(survey)
+    }
+ ```
+Retrieving JSON from repository data.
+
+ ```typescript
+    async show(request: Request, response: Response){
+        const surveysRepository = getCustomRepository(SurveysRepository);
+        const all = await surveysRepository.find();
+
+        return response.json(all)
+    }
+}
+
+export { SurveysController }
+```
+
+### Routes
+
+Generating routes to the server.
+
+```typescript
+import { Router } from 'express';
+import { UserController }  from './controllers/UserController';
+import { SurveysController }  from './controllers/SurveysController';
+
+const router = Router();
+const userController = new UserController();
+const surveysController = new SurveysController();
+
+router.post('/users', userController.create);
+router.get('/surveys', surveysController.show);
+
+export { router }
+```
+
+Importing router to ```server.ts``` and specifying retrieved data format as JSON.
+
+```typescript
+app.use(express.json());
+app.use(router);
+
+app.listen(3333, () => console.log("Server listening on port:3333"));
+```
+
+### Enabling permissions
+
+It is mandatory to uncomment the following ```tsconfig.json``` properties in order to give the Controller all necessary permissions.
+
+```json
+    "strict": false,                           
+    "strictPropertyInitialization": false, 
+    "experimentalDecorators": true,        
+    "forceConsistentCasingInFileNames": true
 ```
