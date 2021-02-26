@@ -12,6 +12,8 @@
 - [Routes](https://github.com/denisgodoy/api-nps#routes)
 - [Enabling permissions](https://github.com/denisgodoy/api-nps#enabling-permissions)
 - [Sending Email](https://github.com/denisgodoy/api-nps#sending-email)
+- [Receiving user rating](https://github.com/denisgodoy/api-nps#receiving-user-rating)
+- [Calculating NPS](https://github.com/denisgodoy/api-nps#calculating-nps)
 
 ## Setting up 
 Installing all necessary dependencies to start the project.
@@ -336,7 +338,7 @@ Prevent users from receiveing the same survey if not yet answered.
 export { SendMailController };
 ```
 
-Setting up nodemailer and Ethereal services.
+Setting up nodemailer and Ethereal services for this example project.
 
 ```typescript
 class SendMailService {
@@ -380,4 +382,72 @@ Sending email and filling up template.
 };
 
 export default new SendMailService();
+```
+
+## Receiving user rating
+Executing Controller to define the user's rating from URL params.
+
+```typescript
+class AnswerController {
+    async execute(req: Request, res: Response){
+        const { value } = req.params;
+        const { u } = req.query;
+
+        const surveysUsersRepository = getCustomRepository(SurveysUsersRepository);
+        const surveyUser = await surveysUsersRepository.findOne({id: String(u)});
+
+            if (!surveyUser){
+                throw new AppError('Survey User does not exist.')
+            };
+
+            surveyUser.value = Number(value);
+        
+        await surveysUsersRepository.save(surveyUser);
+        return res.json(surveyUser);
+    };
+};
+
+export { AnswerController };
+```
+
+## Calculating NPS
+Retrieving rating from the URL params and search answers on the database if valid.
+
+```typescript
+class NpsController {
+    async execute(req: Request, res: Response){
+
+        const { survey_id } = req.params;
+
+        const surveysUsersRepository = getCustomRepository(SurveysUsersRepository);
+        const surveysUsers = await surveysUsersRepository.find({
+            survey_id,
+            value: Not(IsNull())
+        });
+```
+
+Calculating NPS and return JSON.
+
+```typescript
+        const detractors = surveysUsers.filter(survey => survey.value <= 6).length;
+        const passives = surveysUsers.filter(survey => survey.value >= 7 && survey.value <= 8).length;
+        const promoters = surveysUsers.filter(survey => survey.value >= 9).length;
+        
+        const totalAnswers = surveysUsers.length;
+
+        const calculate = Number(
+            (((promoters - detractors) / totalAnswers) * 100).toFixed(2)
+        );
+        
+        return res.json({
+            detractors,
+            promoters,
+            passives,
+            totalAnswers,
+            nps: calculate
+        });
+    };
+};
+
+export { NpsController };
 ```
